@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineFlow AI — Multimodal Video Editor &amp; Voiceover Studio</title>
+  <meta name="description" content="AI-powered nonlinear video editing, highlight extraction, Groq voiceover synthesis, and FFmpeg rendering studio." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="ambient-glow ambient-glow-left" aria-hidden="true"></div>
+  <div class="ambient-glow ambient-glow-right" aria-hidden="true"></div>
+
+  <!-- ======================== STUDIO TOP BAR ======================== -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <rect x="2" y="4" width="24" height="20" rx="5" stroke="currentColor" stroke-width="2" />
+            <path d="M11 9.5L19 14L11 18.5V9.5Z" fill="currentColor" />
+            <path d="M6 4V24M22 4V24" stroke="currentColor" stroke-width="1.5" stroke-opacity="0.45" />
+          </svg>
+        </div>
+        <div>
+          <div class="brand-title-row">
+            <h1 class="brand-name">CineFlow <span class="text-gradient">AI</span></h1>
+            <span class="version-pill">STUDIO v1.0</span>
+          </div>
+          <p class="brand-subtitle">Gemini Multimodal EDL &bull; Groq LPU + Voiceover &bull; FFmpeg Ducking Engine</p>
+        </div>
+      </div>
+
+      <div class="topbar-right">
+        <div id="healthBadges" class="health-pills" aria-live="polite">
+          <span class="status-chip chip-neutral" id="badgeFfmpeg">
+            <span class="dot"></span> FFmpeg
+          </span>
+          <span class="status-chip chip-neutral" id="badgeGemini">
+            <span class="dot"></span> Gemini AI
+          </span>
+          <span class="status-chip chip-neutral" id="badgeGroq">
+            <span class="dot"></span> Groq TTS
+          </span>
+        </div>
+
+        <div class="history-dropdown-wrap">
+          <button type="button" id="btnToggleHistory" class="btn-ghost btn-sm" title="View recent render jobs">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="9"></circle>
+              <polyline points="12 7 12 12 15 15"></polyline>
+            </svg>
+            <span>Recent Jobs</span>
+            <span id="historyCountBadge" class="count-pill hidden">0</span>
+          </button>
+          <div id="historyDrawer" class="history-popover hidden">
+            <div class="history-popover-header">
+              <span>Recent Render Sessions</span>
+              <button type="button" id="btnRefreshHistory" class="link-btn">Refresh</button>
+            </div>
+            <div id="historyList" class="history-list">
+              <p class="empty-hint">No previous renders yet.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ======================== MAIN WORKSPACE GRID ======================== -->
+  <main class="workspace">
+    <!-- ==================== LEFT SIDEBAR: INGEST & BRIEF ==================== -->
+    <aside class="sidebar-col">
+      <!-- 1. Media Ingestion Card -->
+      <section class="panel-card">
+        <div class="panel-header">
+          <div class="step-badge">1</div>
+          <div>
+            <h2 class="panel-title">Media Ingestion</h2>
+            <p class="panel-desc">Upload raw MP4, MOV, WEBM, or MKV footage</p>
+          </div>
+          <button type="button" id="btnReplaceVideo" class="btn-ghost btn-xs hidden">Replace</button>
+        </div>
+
+        <input
+          type="file"
+          id="videoFileInput"
+          accept=".mp4,.mov,.webm,.mkv,.m4v,video/mp4,video/quicktime,video/webm"
+          class="sr-only"
+        />
+
+        <!-- Dropzone -->
+        <div id="uploadDropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload video file">
+          <div class="dropzone-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+          <p class="dropzone-title">Drag &amp; drop source video here</p>
+          <p class="dropzone-sub">or <span class="accent-underline">browse local files</span> (MP4 / MOV up to <span id="maxUploadLabel">300</span> MB)</p>
+
+          <!-- Upload byte progress bar -->
+          <div id="uploadProgressWrap" class="upload-progress-wrap hidden">
+            <div class="upload-progress-track">
+              <div id="uploadProgressBar" class="upload-progress-fill" style="width: 0%"></div>
+            </div>
+            <p id="uploadProgressText" class="upload-progress-label">Uploading... 0%</p>
+          </div>
+        </div>
+
+        <!-- Uploaded Media Metadata Inspector -->
+        <div id="mediaInspector" class="media-inspector hidden">
+          <div class="inspector-preview-row">
+            <video id="inspectorThumbVideo" class="inspector-thumb" muted playsinline preload="metadata"></video>
+            <div class="inspector-file-info">
+              <p id="metaFilename" class="inspector-filename" title="">footage.mp4</p>
+              <span id="metaAudioBadge" class="audio-pill audio-yes">Stereo Audio</span>
+            </div>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-cell">
+              <span class="meta-key">Duration</span>
+              <span id="metaDuration" class="meta-val">--:--</span>
+            </div>
+            <div class="meta-cell">
+              <span class="meta-key">Resolution</span>
+              <span id="metaResolution" class="meta-val">----×----</span>
+            </div>
+            <div class="meta-cell">
+              <span class="meta-key">Frame Rate</span>
+              <span id="metaFps" class="meta-val">-- fps</span>
+            </div>
+            <div class="meta-cell">
+              <span class="meta-key">Codecs</span>
+              <span id="metaCodecs" class="meta-val">h264 / aac</span>
+            </div>
+            <div class="meta-cell">
+              <span class="meta-key">Aspect</span>
+              <span id="metaAspect" class="meta-val">16:9</span>
+            </div>
+            <div class="meta-cell">
+              <span class="meta-key">Size</span>
+              <span id="metaSize" class="meta-val">-- MB</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. AI Director Prompt & Studio Parameters -->
+      <section class="panel-card">
+        <div class="panel-header">
+          <div class="step-badge">2</div>
+          <div>
+            <h2 class="panel-title">AI Director Brief &amp; Voiceover</h2>
+            <p class="panel-desc">Describe pacing, cuts, target length, and narrator vibe</p>
+          </div>
+        </div>
+
+        <div class="preset-chips" aria-label="Quick editing prompt presets">
+          <button
+            type="button"
+            class="preset-chip"
+            data-prompt="Create a fast-paced 30s TikTok highlight reel with punchy cuts, dynamic transitions, and an energetic narrator."
+            data-aspect="9:16"
+            data-voice="troy"
+            data-maxdur="30"
+          >
+            ⚡ 30s TikTok Highlight
+          </button>
+          <button
+            type="button"
+            class="preset-chip"
+            data-prompt="Craft a dramatic 45s cinematic trailer with smooth fade transitions, suspenseful pacing, and a deep documentary voiceover."
+            data-aspect="16:9"
+            data-voice="daniel"
+            data-maxdur="45"
+          >
+            🎬 Cinematic Trailer
+          </button>
+          <button
+            type="button"
+            class="preset-chip"
+            data-prompt="Produce a crisp 35s product & feature showcase focusing on the clearest visual demonstrations with a polished presenter voiceover."
+            data-aspect="original"
+            data-voice="diana"
+            data-maxdur="35"
+          >
+            ✨ Product Showcase
+          </button>
+          <button
+            type="button"
+            class="preset-chip"
+            data-prompt="Build a warm 40s story-driven recap highlighting key moments in chronological order with conversational narration."
+            data-aspect="original"
+            data-voice="autumn"
+            data-maxdur="40"
+          >
+            🎙️ Story Recap
+          </button>
+        </div>
+
+        <div class="field-group">
+          <div class="label-row">
+            <label for="promptInput" class="field-label">Editing Instructions</label>
+            <span id="promptCharCount" class="char-counter">0 / 1500</span>
+          </div>
+          <textarea
+            id="promptInput"
+            rows="4"
+            maxlength="1500"
+            class="textarea-control"
+            placeholder="e.g., Create a fast-paced 30s TikTok highlight reel with an energetic narrator..."
+          >Create a fast-paced 30s TikTok highlight reel with punchy cuts, smooth transitions, and an energetic narrator.</textarea>
+        </div>
+
+        <div class="controls-grid">
+          <div class="field-group">
+            <label for="selectVoice" class="field-label">Narrator Voice</label>
+            <select id="selectVoice" class="select-control">
+              <option value="auto">✨ Auto (Gemini Scene Match)</option>
+              <option value="troy">Troy — Energetic Male</option>
+              <option value="daniel">Daniel — Cinematic Male</option>
+              <option value="austin">Austin — Conversational Male</option>
+              <option value="autumn">Autumn — Expressive Female</option>
+              <option value="diana">Diana — Crisp Studio Female</option>
+              <option value="hannah">Hannah — Bright Upbeat Female</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="selectAspect" class="field-label">Target Aspect Ratio</label>
+            <select id="selectAspect" class="select-control">
+              <option value="original">Original Resolution</option>
+              <option value="9:16">9:16 Vertical (TikTok / Reels)</option>
+              <option value="16:9">16:9 Landscape (YouTube)</option>
+              <option value="1:1">1:1 Square Feed</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label for="selectTtsEngine" class="field-label">Voice Synthesis Engine</label>
+            <select id="selectTtsEngine" class="select-control">
+              <option value="auto">Auto (Groq Orpheus → Edge Neural)</option>
+              <option value="groq">Groq Orpheus Native TTS</option>
+              <option value="edge">Microsoft Edge Neural TTS</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <div class="label-row">
+              <label for="rangeMaxDuration" class="field-label">Max Duration Cap</label>
+              <span id="labelMaxDuration" class="slider-readout">30s</span>
+            </div>
+            <input
+              type="range"
+              id="rangeMaxDuration"
+              min="0"
+              max="120"
+              step="5"
+              value="30"
+              class="range-control"
+            />
+          </div>
+        </div>
+
+        <div class="field-group">
+          <div class="label-row">
+            <label for="rangeDucking" class="field-label">Background Audio Ducking (During Speech)</label>
+            <span id="labelDucking" class="slider-readout">18% (-15 dB)</span>
+          </div>
+          <input
+            type="range"
+            id="rangeDucking"
+            min="5"
+            max="55"
+            step="1"
+            value="18"
+            class="range-control"
+          />
+        </div>
+
+        <div id="inlineAlert" class="alert-banner hidden" role="alert"></div>
+
+        <button type="button" id="btnStartRender" class="btn-primary btn-block" disabled>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1">
+            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+          </svg>
+          <span id="btnStartRenderLabel">Upload a Video to Begin</span>
+        </button>
+      </section>
+    </aside>
+
+    <!-- ==================== RIGHT STAGE: PIPELINE, PLAYER & TIMELINE ==================== -->
+    <section class="stage-col">
+      <!-- 1. Real-Time Pipeline Status Tracker -->
+      <div id="pipelineCard" class="panel-card pipeline-card">
+        <div class="pipeline-top-row">
+          <div>
+            <div class="pipeline-title-wrap">
+              <h2 class="panel-title">Render Pipeline Telemetry</h2>
+              <span id="jobStatusBadge" class="job-badge badge-idle">Idle</span>
+            </div>
+            <p id="jobStageDetail" class="pipeline-detail">
+              Upload footage and click &ldquo;Generate AI Edit &amp; Voiceover&rdquo; to launch the automated workflow.
+            </p>
+          </div>
+          <div class="pipeline-metrics-right">
+            <span id="jobElapsed" class="mono-stat">00:00</span>
+            <span id="jobPercent" class="percent-stat">0%</span>
+          </div>
+        </div>
+
+        <!-- Master Progress Bar -->
+        <div class="master-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="masterProgressFill" class="master-progress-fill" style="width: 0%"></div>
+        </div>
+
+        <!-- 5-Step Pipeline Stepper: Queued -> Analyzing -> Generating Voiceover -> Rendering FFmpeg -> Done -->
+        <ol class="pipeline-stepper" id="pipelineStepper">
+          <li class="step-node" data-step="Queued">
+            <div class="step-circle">1</div>
+            <div class="step-text">
+              <span class="step-name">Queued</span>
+              <span class="step-sub">Task scheduled</span>
+            </div>
+          </li>
+          <li class="step-node" data-step="Analyzing">
+            <div class="step-circle">2</div>
+            <div class="step-text">
+              <span class="step-name">Analyzing</span>
+              <span class="step-sub">Gemini Multimodal</span>
+            </div>
+          </li>
+          <li class="step-node" data-step="Generating Voiceover">
+            <div class="step-circle">3</div>
+            <div class="step-text">
+              <span class="step-name">Generating Voiceover</span>
+              <span class="step-sub">Groq LPU &amp; TTS</span>
+            </div>
+          </li>
+          <li class="step-node" data-step="Rendering FFmpeg">
+            <div class="step-circle">4</div>
+            <div class="step-text">
+              <span class="step-name">Rendering FFmpeg</span>
+              <span class="step-sub">Cut, Duck &amp; Mux</span>
+            </div>
+          </li>
+          <li class="step-node" data-step="Done">
+            <div class="step-circle">5</div>
+            <div class="step-text">
+              <span class="step-name">Done</span>
+              <span class="step-sub">Ready to export</span>
+            </div>
+          </li>
+        </ol>
+
+        <!-- Collapsible Live Engine Log Terminal -->
+        <details id="consoleDetails" class="console-drawer">
+          <summary class="console-summary">
+            <span>Live Worker Console Logs</span>
+            <span id="logLineCount" class="mono-muted">0 events</span>
+          </summary>
+          <pre id="consoleLogOutput" class="console-pre">Waiting for job execution...</pre>
+        </details>
+      </div>
+
+      <!-- 2. Before / After Video Comparison & Preview Theater -->
+      <div class="panel-card player-card">
+        <div class="player-toolbar">
+          <div class="view-tabs" role="tablist">
+            <button type="button" id="tabCompare" class="view-tab active" role="tab" aria-selected="true">
+              Side-by-Side Comparison
+            </button>
+            <button type="button" id="tabTheater" class="view-tab" role="tab" aria-selected="false">
+              Final Cut Theater
+            </button>
+          </div>
+
+          <div class="transport-controls">
+            <label class="mute-sync-toggle" title="Mute original video audio during synchronized comparison so AI voiceover plays clearly">
+              <input type="checkbox" id="chkMuteOriginalSync" checked />
+              <span>Mute Original on Sync</span>
+            </label>
+
+            <button type="button" id="btnSyncPlay" class="btn-secondary btn-sm" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span id="btnSyncPlayText">Sync Play Both</span>
+            </button>
+
+            <a id="btnDownloadMp4" href="#" download class="btn-download btn-sm disabled-link" aria-disabled="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              <span>Download MP4</span>
+            </a>
+          </div>
+        </div>
+
+        <!-- Dual Video Grid -->
+        <div id="videoStageGrid" class="video-grid mode-compare">
+          <!-- Before: Original Source -->
+          <div id="sourcePlayerPane" class="video-pane">
+            <div class="pane-badge-bar">
+              <span class="pane-tag tag-before">BEFORE &bull; RAW SOURCE</span>
+              <span id="sourcePaneMeta" class="pane-dim-label">No source loaded</span>
+            </div>
+            <div class="video-frame">
+              <video id="videoBefore" controls playsinline preload="metadata" class="hidden"></video>
+              <div id="placeholderBefore" class="video-placeholder">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <rect x="2" y="4" width="20" height="16" rx="3" />
+                  <polygon points="10 9 15 12 10 15 10 9" />
+                </svg>
+                <p>Original footage preview appears here upon upload</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- After: Rendered AI Cut -->
+          <div id="outputPlayerPane" class="video-pane pane-featured">
+            <div class="pane-badge-bar">
+              <span class="pane-tag tag-after">AFTER &bull; AI FINAL CUT + VOICEOVER</span>
+              <span id="outputPaneMeta" class="pane-dim-label">Awaiting render</span>
+            </div>
+            <div class="video-frame">
+              <video id="videoAfter" controls playsinline preload="metadata" class="hidden"></video>
+              <div id="placeholderAfter" class="video-placeholder">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 2L14.8 8.2L21.5 9.2L16.7 14L17.8 20.7L12 17.6L6.2 20.7L7.3 14L2.5 9.2L9.2 8.2L12 2Z" />
+                </svg>
+                <p id="placeholderAfterText">AI-edited highlight cut with ducked voiceover renders here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Render Summary Comparison Bar -->
+        <div id="renderSummaryRibbon" class="summary-ribbon hidden">
+          <div class="ribbon-stat">
+            <span class="ribbon-label">Duration Cut</span>
+            <span id="statDurationCompare" class="ribbon-value">--s → --s</span>
+          </div>
+          <div class="ribbon-stat">
+            <span class="ribbon-label">Kept Segments</span>
+            <span id="statSegmentsCount" class="ribbon-value">0 clips</span>
+          </div>
+          <div class="ribbon-stat">
+            <span class="ribbon-label">Output Specs</span>
+            <span id="statOutputSpecs" class="ribbon-value">1080p MP4</span>
+          </div>
+          <div class="ribbon-stat">
+            <span class="ribbon-label">Voiceover Engine</span>
+            <span id="statVoiceEngine" class="ribbon-value">Groq / Neural</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Nonlinear AI Timeline Visualizer & Script Breakdown -->
+      <div class="panel-card timeline-card">
+        <div class="timeline-header">
+          <div>
+            <div class="timeline-title-row">
+              <h2 id="timelineProjectTitle" class="panel-title">Nonlinear Edit Timeline (EDL)</h2>
+              <span id="timelineToneBadge" class="tone-pill hidden">energetic</span>
+              <span id="timelineVoiceBadge" class="voice-pill hidden">Troy</span>
+            </div>
+            <p id="timelineSummaryText" class="panel-desc">
+              Gemini&rsquo;s scene cuts, transition effects, speed ramps, and Groq voiceover timing blocks appear here in real time.
+            </p>
+          </div>
+          <span class="timeline-hint">Click any clip block to seek players</span>
+        </div>
+
+        <!-- Empty Timeline Placeholder -->
+        <div id="timelineEmptyState" class="timeline-empty">
+          <div class="empty-tracks-illustration" aria-hidden="true">
+            <div class="ghost-track ghost-v1"></div>
+            <div class="ghost-track ghost-a1"></div>
+            <div class="ghost-track ghost-a2"></div>
+          </div>
+          <p>No active timeline yet. Start an AI processing job to inspect cut segments and synchronized scripts.</p>
+        </div>
+
+        <!-- Populated Multi-Track Visualizer -->
+        <div id="timelineContainer" class="timeline-visualizer hidden">
+          <!-- Source Extraction Footprint Bar -->
+          <div class="source-footprint-block">
+            <div class="track-label-row">
+              <span class="track-tag">SOURCE FOOTPRINT</span>
+              <span id="sourceFootprintSpan" class="mono-muted">0.0s — 0.0s</span>
+            </div>
+            <div id="sourceFootprintBar" class="source-footprint-bar"></div>
+          </div>
+
+          <!-- Edited Timeline Ruler -->
+          <div id="timelineRuler" class="timeline-ruler"></div>
+
+          <!-- Track V1: Video Cuts & Transitions -->
+          <div class="nle-track-row">
+            <div class="nle-track-header">
+              <span class="track-code code-v1">V1</span>
+              <span class="track-name">Video Cuts &amp; Transitions</span>
+            </div>
+            <div id="trackVideoClips" class="nle-track-lane lane-video"></div>
+          </div>
+
+          <!-- Track A1: Groq Voiceover Script -->
+          <div class="nle-track-row">
+            <div class="nle-track-header">
+              <span class="track-code code-a1">A1</span>
+              <span class="track-name">Voiceover Narration</span>
+            </div>
+            <div id="trackVoiceClips" class="nle-track-lane lane-voice"></div>
+          </div>
+
+          <!-- Track A2: Ducked Background Audio Envelope -->
+          <div class="nle-track-row">
+            <div class="nle-track-header">
+              <span class="track-code code-a2">A2</span>
+              <span class="track-name">Ducked BG Audio Gain</span>
+            </div>
+            <div id="trackDuckingSvgWrap" class="nle-track-lane lane-ducking"></div>
+          </div>
+
+          <!-- Segment Script & Timestamp Cards -->
+          <div class="segment-cards-header">
+            <h3>Scene Cut &amp; Voiceover Script Sheet</h3>
+            <span id="modelAttributionLabel" class="mono-muted"></span>
+          </div>
+          <div id="segmentCardsList" class="segment-cards-grid"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

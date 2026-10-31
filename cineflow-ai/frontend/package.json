@@ -1,0 +1,15 @@
+{
+  "name": "cineflow-ai-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CineFlow AI Nonlinear Video Editing & Voiceover Studio Frontend",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.2.0"
+  }
+}

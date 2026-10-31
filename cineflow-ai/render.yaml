@@ -1,0 +1,43 @@
+# ==============================================================================
+# Render.com Blueprint — Single-Click Full-Stack Deployment
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+services:
+  - type: web
+    name: cineflow-ai-video-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: standard
+    region: oregon
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_FALLBACK_MODEL
+        value: gemini-2.0-flash
+      - key: GROQ_LLM_MODEL
+        value: llama-3.3-70b-versatile
+      - key: GROQ_TTS_MODEL
+        value: canopylabs/orpheus-v1-english
+      - key: DEFAULT_TTS_ENGINE
+        value: auto
+      - key: STORAGE_DIR
+        value: /app/storage
+      - key: MAX_UPLOAD_MB
+        value: "300"
+      - key: MAX_CONCURRENT_JOBS
+        value: "2"
+      - key: FFMPEG_THREADS
+        value: "2"
+      - key: FFMPEG_PRESET
+        value: veryfast
+      - key: JOB_RETENTION_HOURS
+        value: "24"
